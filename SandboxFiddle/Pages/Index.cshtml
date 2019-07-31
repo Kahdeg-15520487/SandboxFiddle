@@ -1,0 +1,268 @@
+﻿@page
+@model SandboxFiddle.Pages.IndexModel
+@{
+    ViewData["Title"] = "Home page";
+}
+<html>
+
+<head>
+    <style>
+        #editor {
+            width: 50%;
+            height: 200px;
+            float: left;
+        }
+
+        .editor-wrapper {
+            position: relative;
+            margin: 10px 0;
+        }
+
+        .string {
+            word-wrap: break-word;
+        }
+
+        .log {
+            width: 50%;
+            float: right;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.5/ace.js"
+            integrity="sha256-5Xkhn3k/1rbXB+Q/DX/2RuAtaB4dRRyQvMs83prFjpM=" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.5/ext-error_marker.js"
+            integrity="sha256-v2DV1V+IQESJM5nCDj7X2d9+JZ5xpDIi2cG/YrA8b7g=" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.5/ext-beautify.js"
+            integrity="sha256-XURxU9F6YJl7wYVNfD4/aztOdXJyQ9vZ/03hyUknaOU=" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.5/ext-modelist.js"
+            integrity="sha256-Eq83mfVraqpouXYtwjYSEvTt6JM7k1VrhsebwRs06AM=" crossorigin="anonymous"></script>
+    <script type="text/javascript" src="renderjson.js"></script>
+</head>
+
+<body>
+    <script>
+        const example = {
+            'simple': 'IQueryable< User> query = context.Users; return mapper.Map< List< UserDto>>(query.ToList());',
+            'compose': 'IQueryable<Customer> query = context.Customers;\n IQueryable<Customer> query1 = query.Where(cust=>cust.City == "London"); IQueryable<Customer> query2 = query.Where(cust=>cust.Address.StartsWith("221b")); return mapper.Map< List< CustomerDto>>(query1.ToList());'
+        }
+
+/**/</script>
+    <button onclick="request()">Run</button>
+    <button onclick="clearCodeEditor()">New</button>
+    <button onclick="save()">Save</button>
+    <form action='#' onsubmit="return false;">
+        <input type='file' id='fileinput'>
+        <input type='button' id='btnLoad' value='Load' onclick='loadFile();'>
+    </form>
+    <select id="lang" onchange="langChange()"></select>
+
+    <div class="editor-wrapper">
+        <div id="editor">
+            IQueryable< User> query = context.Users;
+            return mapper.Map< List< UserDto>>(query.ToList());
+        </div>
+        <div>log:</div>
+        <div id="log" class="log">
+
+        </div>
+    </div>
+    <div style="clear: both;"></div>
+    <script>
+        let options = document.getElementById("lang");
+
+        var editor = ace.edit("editor");
+        editor.setTheme("ace/theme/monokai");
+
+        console.log(0);
+        const protocol = {
+            'http:': 'http://localhost:5000',
+            'https:': 'https://localhost:5001',
+        }
+        console.log(1);
+
+    function loadLangOption() {
+        console.log(protocol[location.protocol]);
+            fetch(protocol[location.protocol] + '/api/scripting/supported', {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
+            })
+                .then(response => {
+                    console.log("1");
+                    console.log(response);
+                    return response.json();
+                })
+                .then(function (result) {
+                    console.log("2");
+                    console.log(result);
+                    result.forEach(element => {
+                        let opt = document.createElement('option');
+                        opt.appendChild(document.createTextNode(element));
+                        opt.value = element;
+                        options.appendChild(opt);
+                    });
+
+                    langChange();
+                });
+        }
+        window.onload = loadLangOption;
+
+        function langChange() {
+            let lang = options.value;
+            console.log(lang);
+            if (lang === "Csharp") {
+                editor.getSession().setMode("ace/mode/csharp");
+            }
+            else if (lang === "Js") {
+                editor.getSession().setMode("ace/mode/javascript");
+            }
+        }
+
+        function clearCodeEditor() {
+            editor.setValue('');
+        }
+
+        function request() {
+            return fetch(protocol[location.protocol] + '/api/scripting', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    scriptType: options.value,
+                    code: editor.getValue(),
+                    imports: ''
+                })
+            })
+                .then(response => {
+                    console.log("lala");
+                    console.log(response);
+                    // response.text().then(s => {
+                    //     console.log(s);
+                    // })
+                    return response.json();
+                })
+                .then(function (result) {
+                    console.log("lalala");
+                    console.log(result);
+                    let msg = result['msg'];
+                    let runResult = result['result'];
+                    if (msg) {
+                        runResult = msg;
+                    }
+                    if (!runResult) {
+                        runResult = "";
+                    }
+                    let log = result['log'];
+                    let resultDisplay = document.getElementById("result");
+                    renderjson.set_show_to_level(3);
+                    while (resultDisplay.firstChild) {
+                        resultDisplay.removeChild(resultDisplay.firstChild);
+                    }
+                    resultDisplay.appendChild(renderjson(runResult));
+                    if (log) {
+                        let logDisplay = document.getElementById("log");
+                        log.forEach(element => {
+                            elmAppend(logDisplay, "p", element);
+                        });
+                    }
+                });
+        }
+
+        function clearResult() {
+            let resultDisplay = document.getElementById("result");
+            while (resultDisplay.firstChild) {
+                resultDisplay.removeChild(resultDisplay.firstChild);
+            }
+            let logDisplay = document.getElementById("log");
+            while (logDisplay.firstChild) {
+                logDisplay.removeChild(logDisplay.firstChild);
+            }
+        }
+
+        function loadFile() {
+            var input, file, fr;
+            if (typeof window.FileReader !== 'function') {
+                bodyAppend("p", "The file API isn't supported on this browser yet.");
+                return;
+            }
+            input = document.getElementById('fileinput');
+            if (!input) {
+                bodyAppend("p", "Um, couldn't find the fileinput element.");
+            } else if (!input.files) {
+                bodyAppend("p", "This browser doesn't seem to support the `files` property of file inputs.");
+            } else if (!input.files[0]) {
+                bodyAppend("p", "Please select a file before clicking 'Load'");
+            } else {
+                file = input.files[0];
+                fr = new FileReader();
+                fr.onload = receivedText;
+                fr.readAsText(file);
+            }
+
+            function receivedText() {
+                showResult(fr, "Text");
+                fr = new FileReader();
+            }
+
+        }
+
+        function showResult(fr, label) {
+            var markup, result, n, aByte, byteStr;
+            markup = [];
+            result = fr.result;
+            markup.push(result);
+            // bodyAppend("p", label + " (" + result.length + "):");
+            // bodyAppend("pre", markup.join(" "));
+            editor.setValue(result, -1);
+        }
+
+        function bodyAppend(tagName, innerHTML) {
+            var elm;
+            elm = document.createElement(tagName);
+            elm.innerHTML = innerHTML;
+            document.body.appendChild(elm);
+        }
+
+        function elmAppend(pelm, tagName, innerHTML) {
+            var elm;
+            elm = document.createElement(tagName);
+            elm.innerHTML = innerHTML;
+            pelm.appendChild(elm);
+        }
+
+        function save() {
+            let data = editor.getValue();
+            download(data, "code.cs", "text/plain");
+        }
+
+        function download(data, filename, type) {
+            var file = new Blob([data], {
+                type: type
+            });
+            if (window.navigator.msSaveOrOpenBlob) // IE10+
+                window.navigator.msSaveOrOpenBlob(file, filename);
+            else { // Others
+                var a = document.createElement("a"),
+                    url = URL.createObjectURL(file);
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(function () {
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                }, 0);
+            }
+        }
+    </script>
+    <br />
+    <button onclick="clearResult()">clear result</button>
+    <div style="width:100%;">
+        <div id="result" style="width:100%;word-wrap: break-word;"></div>
+    </div>
+</body>
+
+</html>
